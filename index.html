@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Projektor-interaktiv Entanglementanemone</title>
+    <title>Hyper-interaktiv Projektor Entanglementanemone</title>
     <style>
         body { 
             margin: 0; 
@@ -39,7 +39,6 @@
 
         const noiseGen = new SimplexNoise();
 
-        // Opret tentakler
         const tentacleCount = 200;
         const tentacleSegments = 50;
         const tentacles = [];
@@ -80,15 +79,14 @@
         camera.position.z = 15;
 
         let time = 0;
-        let clickIntensity = 0;
+        let motionIntensity = 0;
+        let motionDirection = new THREE.Vector2(0, 0);
 
-        // Kamera setup
         const video = document.getElementById('cameraFeed');
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         let lastImageData;
 
-        // Anmod om kameraadgang
         navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
             .then(stream => {
                 video.srcObject = stream;
@@ -105,13 +103,18 @@
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 
                 if (lastImageData) {
-                    let diff = 0;
-                    for (let i = 0; i < imageData.data.length; i += 4) {
-                        diff += Math.abs(imageData.data[i] - lastImageData.data[i]);
+                    let diffX = 0, diffY = 0, totalDiff = 0;
+                    for (let y = 0; y < canvas.height; y++) {
+                        for (let x = 0; x < canvas.width; x++) {
+                            const i = (y * canvas.width + x) * 4;
+                            const diff = Math.abs(imageData.data[i] - lastImageData.data[i]);
+                            diffX += diff * (x / canvas.width - 0.5);
+                            diffY += diff * (y / canvas.height - 0.5);
+                            totalDiff += diff;
+                        }
                     }
-                    const avgDiff = diff / (imageData.data.length / 4);
-                    
-                    clickIntensity = Math.min(avgDiff / 50, 1);  // Juster dette tal efter behov
+                    motionIntensity = Math.min(totalDiff / (imageData.data.length / 4) / 50, 1);
+                    motionDirection.set(diffX / totalDiff, -diffY / totalDiff);
                 }
                 
                 lastImageData = imageData;
@@ -142,24 +145,39 @@
                     positions[i+1] += (noiseValue * 0.05 + chaosY) * (segmentIndex / tentacleSegments);
                     positions[i+2] += (noiseValue * 0.05 + chaosZ) * (segmentIndex / tentacleSegments);
 
-                    // Tilføj ekstra bevægelse baseret på detekteret motion
-                    positions[i] += (Math.random() - 0.5) * clickIntensity * 0.1;
-                    positions[i+1] += (Math.random() - 0.5) * clickIntensity * 0.1;
-                    positions[i+2] += (Math.random() - 0.5) * clickIntensity * 0.1;
+                    // Reagér på bevægelsesretning
+                    positions[i] += motionDirection.x * motionIntensity * 0.2 * (segmentIndex / tentacleSegments);
+                    positions[i+1] += motionDirection.y * motionIntensity * 0.2 * (segmentIndex / tentacleSegments);
+
+                    // Tilføj bølgeeffekt baseret på bevægelsesintensitet
+                    const waveEffect = Math.sin(time * 5 + segmentIndex * 0.5) * motionIntensity * 0.1;
+                    positions[i] += waveEffect;
+                    positions[i+1] += waveEffect;
+
+                    // Tilføj spiraleffekt baseret på bevægelsesintensitet
+                    const spiralAngle = motionIntensity * Math.PI * 2 * (segmentIndex / tentacleSegments);
+                    const spiralRadius = motionIntensity * (segmentIndex / tentacleSegments) * 0.5;
+                    positions[i] += Math.cos(spiralAngle) * spiralRadius;
+                    positions[i+1] += Math.sin(spiralAngle) * spiralRadius;
                 }
                 tentacle.geometry.attributes.position.needsUpdate = true;
 
-                // Juster farve og opacitet baseret på detekteret motion
-                const intensity = 0.7 + clickIntensity * 0.3;
-                tentacle.material.color.setRGB(intensity, intensity, intensity);
-                tentacle.material.opacity = 0.7 + clickIntensity * 0.3;
+                // Dynamisk opacitet baseret på bevægelse
+                tentacle.material.opacity = 0.3 + motionIntensity * 0.7;
             });
 
-            tentacleGroup.rotation.x = Math.sin(time * 0.5) * 0.3;
-            tentacleGroup.rotation.y = Math.cos(time * 0.3) * 0.3;
+            // Rotér hele anemonen baseret på bevægelsesretning
+            tentacleGroup.rotation.x += motionDirection.y * motionIntensity * 0.05;
+            tentacleGroup.rotation.y += motionDirection.x * motionIntensity * 0.05;
 
-            const pulseFactor = 1 + Math.sin(time * 3) * 0.1 + clickIntensity * 0.3;
+            // Pulserende effekt baseret på bevægelsesintensitet
+            const pulseFactor = 1 + Math.sin(time * 3) * 0.1 + motionIntensity * 0.3;
             tentacleGroup.scale.set(pulseFactor, pulseFactor, pulseFactor);
+
+            // Kamerabevægelse baseret på motion
+            camera.position.x += (motionDirection.x * motionIntensity - camera.position.x) * 0.05;
+            camera.position.y += (motionDirection.y * motionIntensity - camera.position.y) * 0.05;
+            camera.lookAt(scene.position);
 
             renderer.render(scene, camera);
         }
@@ -192,7 +210,6 @@
         document.addEventListener('touchend', handleTap);
         document.addEventListener('mouseup', handleTap);
 
-        // Tilpas størrelsen når vinduet ændres
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
