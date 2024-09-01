@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Projektor-interaktiv Entanglementanemone - Kvantedyr</title>
+    <title>Projektor-interaktiv Entanglementanemone</title>
     <style>
         body { 
             margin: 0; 
             overflow: hidden; 
             background-color: #000;
+            touch-action: none;
         }
         canvas { 
             display: block; 
+            touch-action: none;
         }
         #cameraFeed {
             position: absolute;
@@ -163,6 +165,32 @@
         }
 
         animate();
+
+        // Fuld skærm funktionalitet
+        let lastTapTime = 0;
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        function handleTap(event) {
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTapTime;
+            if (tapLength < 300 && tapLength > 0) {
+                toggleFullScreen();
+                event.preventDefault();
+            }
+            lastTapTime = currentTime;
+        }
+
+        document.addEventListener('touchend', handleTap);
+        document.addEventListener('mouseup', handleTap);
 
         // Tilpas størrelsen når vinduet ændres
         window.addEventListener('resize', () => {
